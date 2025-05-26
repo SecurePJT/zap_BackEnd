@@ -29,6 +29,12 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	
+	// zap 의존성
+	implementation 'org.zaproxy:zap-clientapi:1.9.0'
+	
+	// 개발 전용 의존성으로 DevTools 추가
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
 }
 
 tasks.named('test') {
