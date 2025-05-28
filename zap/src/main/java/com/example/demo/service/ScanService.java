@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.zaproxy.clientapi.core.Alert;
 import org.zaproxy.clientapi.core.ApiResponse;
 import org.zaproxy.clientapi.core.ApiResponseElement;
-import org.zaproxy.clientapi.core.ApiResponseList;
 import org.zaproxy.clientapi.core.ClientApi;
 import org.zaproxy.clientapi.core.ClientApiException;
 
@@ -109,6 +108,141 @@ public class ScanService {
             .collect(Collectors.toList());
 
         return new ScanResult(targetUrl, alerts);
+    }
+    
+    /**
+     * AJAX + 전통 Spider 크롤링 후 패시브 스캔 결과만 반환
+     */
+    public ScanResult performPassiveScan(String targetUrl)
+            throws InterruptedException, ClientApiException {
+        System.out.println("진입0 (Passive)");
+
+        // 1) AJAX Spider
+        api.ajaxSpider.scan(targetUrl, "60", "", "true");
+        waitForAjaxSpider();
+
+        // 2) 전통 Spider
+        api.spider.setOptionMaxDepth(5);
+        api.spider.setOptionThreadCount(2);
+        api.spider.scan(targetUrl, "", "true", "", "false");
+        waitForSpider();
+
+        // 3) 알림(패시브) 수집
+        List<Alert> zapAlerts = api.getAlerts(null, 0, 9999);
+        List<AlertDto> alerts = mapToDto(targetUrl, zapAlerts);
+        return new ScanResult(targetUrl, alerts);
+    }
+    
+    /**
+     * Active Scan만 별도로 실행
+     */
+    public ScanResult performActiveScan(String targetUrl)
+            throws InterruptedException, ClientApiException {
+        System.out.println("진입0 (Active)");
+
+        api.ascan.scan(
+            targetUrl,        // URL
+            "true",           // recurse
+            "false",          // inScopeOnly
+            "Default Policy", // scanPolicyName
+            null,             // method
+            null              // postData
+        );
+        waitForActiveScan();
+
+        // 2) 알림(Active + Passive) 수집
+        List<Alert> zapAlerts = api.getAlerts(null, 0, 9999);
+        List<AlertDto> alerts = mapToDto(targetUrl, zapAlerts);
+        return new ScanResult(targetUrl, alerts);
+    }
+    
+    /**
+     * 크롤링 없이 단일 URL 요청만으로 패시브 스캔
+     */
+    public ScanResult performPassiveNoCrawl(String targetUrl)
+            throws InterruptedException, ClientApiException {
+        System.out.println("진입0 (PassiveNoCrawl)");
+
+        // 1) (Optional) 모든 패시브 스캐너 활성화
+        api.pscan.enableAllScanners();
+
+        // 2) 단일 URL 요청 → 이 트래픽에 대해 패시브 룰이 실행됨
+        api.core.accessUrl(targetUrl, "true");
+
+        // 3) 패시브 스캔이 남은 레코드가 0이 될 때까지 대기
+        waitForPassiveScan();
+
+        // 4) Alerts 수집 (패시브+액티브 상관없이 모두 가져오므로 필터로 구분)
+        List<Alert> zapAlerts = api.getAlerts(null, 0, 9999);
+
+        // 5) DTO 매핑 & URL 필터링
+        List<AlertDto> alerts = mapToDto(targetUrl, zapAlerts);
+        return new ScanResult(targetUrl, alerts);
+    }
+    
+    private void waitForPassiveScan() throws ClientApiException, InterruptedException {
+        int records;
+        do {
+            // recordsToScan는 ApiResponseElement로 넘어옴
+            String v = ((ApiResponseElement) api.pscan.recordsToScan()).getValue();
+            records = Integer.parseInt(v);
+            System.out.println("Passive records to scan: " + records);
+            Thread.sleep(500);
+        } while (records > 0);
+        System.out.println("Passive Scan 완료");
+    }
+    
+    private void waitForAjaxSpider() throws InterruptedException, ClientApiException {
+        String status;
+        do {
+            ApiResponse resp = api.ajaxSpider.status();
+            status = (resp instanceof ApiResponseElement)
+                ? ((ApiResponseElement) resp).getValue()
+                : resp.toString();
+            System.out.println("AJAX Spider: " + status + "%");
+            Thread.sleep(500);
+        } while (!"100".equals(status) && !"stopped".equalsIgnoreCase(status));
+        System.out.println("Ajax Spider 완료 (" + status + ")");
+    }
+
+    private void waitForSpider() throws InterruptedException, ClientApiException {
+        String s;
+        do {
+            s = api.spider.status(null).toString();
+            System.out.println("Spider: " + s + "%");
+            Thread.sleep(500);
+        } while (Integer.parseInt(s.replaceAll("\\D+", "")) < 100);
+        System.out.println("Spider 완료");
+    }
+
+    private void waitForActiveScan() throws InterruptedException, ClientApiException {
+        String raw;
+        int pct;
+        do {
+            ApiResponse resp = api.ascan.status(null);
+            raw = (resp instanceof ApiResponseElement)
+                ? ((ApiResponseElement) resp).getValue()
+                : resp.toString();
+            pct = Integer.parseInt(raw.replaceAll("\\D+", ""));
+            System.out.println("Active Scan: " + pct + "%");
+            Thread.sleep(2000);
+        } while (pct < 100);
+        System.out.println("Active Scan 완료");
+    }
+
+    private List<AlertDto> mapToDto(String targetUrl, List<Alert> zapAlerts) {
+        return zapAlerts.stream()
+            .filter(a -> a.getUrl().startsWith(targetUrl))
+            .map(z -> {
+                AlertDto dto = new AlertDto();
+                dto.setRisk(z.getRisk().toString());
+                dto.setName(z.getName());
+                dto.setUri(z.getUrl());
+                dto.setParam(z.getParam());
+                dto.setEvidence(z.getEvidence());
+                return dto;
+            })
+            .collect(Collectors.toList());
     }
 
 
