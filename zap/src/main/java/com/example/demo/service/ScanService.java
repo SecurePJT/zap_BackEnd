@@ -107,7 +107,7 @@ public class ScanService {
             ))
             .collect(Collectors.toList());
 
-        return new ScanResult(targetUrl, alerts);
+        return new ScanResult(targetUrl, alerts.size(), alerts);
     }
     
     /**
@@ -130,7 +130,7 @@ public class ScanService {
         // 3) 알림(패시브) 수집
         List<Alert> zapAlerts = api.getAlerts(null, 0, 9999);
         List<AlertDto> alerts = mapToDto(targetUrl, zapAlerts);
-        return new ScanResult(targetUrl, alerts);
+        return new ScanResult(targetUrl, alerts.size(), alerts);
     }
     
     /**
@@ -153,7 +153,7 @@ public class ScanService {
         // 2) 알림(Active + Passive) 수집
         List<Alert> zapAlerts = api.getAlerts(null, 0, 9999);
         List<AlertDto> alerts = mapToDto(targetUrl, zapAlerts);
-        return new ScanResult(targetUrl, alerts);
+        return new ScanResult(targetUrl, alerts.size(), alerts);
     }
     
     /**
@@ -177,7 +177,7 @@ public class ScanService {
 
         // 5) DTO 매핑 & URL 필터링
         List<AlertDto> alerts = mapToDto(targetUrl, zapAlerts);
-        return new ScanResult(targetUrl, alerts);
+        return new ScanResult(targetUrl, alerts.size(), alerts);
     }
     
     private void waitForPassiveScan() throws ClientApiException, InterruptedException {
