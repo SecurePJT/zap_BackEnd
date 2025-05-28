@@ -41,7 +41,7 @@ public class ScanController {
 	}
 
 	// Ajax Spider와 전통 Spider 크롤링 후 Active Scan
-	// 분석결과 598
+	// 분석결과 754
 	@PostMapping("/scan")
 	public ResponseEntity<ScanResult> scan(@RequestBody ScanRequest req) throws Exception {
 		// 1) 유효성 검사 (SSRF 방지 등)
@@ -54,7 +54,7 @@ public class ScanController {
 	}
 
 	// AJAX + 전통 Spider 크롤링 후 패시브 스캔 결과만 반환
-	// 분석결과 684
+	// 분석결과 839
 	@PostMapping("/performPassiveScan")
 	public ResponseEntity<ScanResult> performPassiveScan(@RequestBody ScanRequest req) throws Exception {
 		// 1) 유효성 검사 (SSRF 방지 등)
@@ -67,7 +67,7 @@ public class ScanController {
 	}
 
 	// 크롤링x Active Scan만 별도로 실행
-	// 분석결과 696
+	// 분석결과 847
 	@PostMapping("/performActiveScan")
 	public ResponseEntity<ScanResult> performActiveScan(@RequestBody ScanRequest req) throws Exception {
 		// 1) 유효성 검사 (SSRF 방지 등)
@@ -80,7 +80,7 @@ public class ScanController {
 	}
 	
 	// 크롤링 없이 URL 단건 요청만으로 패시브 스캔
-	// 분석결과 696
+	// 분석결과 839
 	@PostMapping("/performPassiveNoCrawl")
     public ResponseEntity<ScanResult> performPassiveNoCrawl(@RequestBody ScanRequest req) throws Exception {
         if (!req.getUrl().startsWith("http")) {
