@@ -1,12 +1,9 @@
 package com.example.demo.controller;
 
-import java.util.List;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.zaproxy.clientapi.core.ApiResponse;
 import org.zaproxy.clientapi.core.ApiResponseElement;
@@ -41,7 +38,7 @@ public class ScanController {
 	}
 
 	// Ajax Spider와 전통 Spider 크롤링 후 Active Scan
-	// 분석결과 754
+	// 분석결과 412
 	@PostMapping("/scan")
 	public ResponseEntity<ScanResult> scan(@RequestBody ScanRequest req) throws Exception {
 		// 1) 유효성 검사 (SSRF 방지 등)
@@ -54,7 +51,7 @@ public class ScanController {
 	}
 
 	// AJAX + 전통 Spider 크롤링 후 패시브 스캔 결과만 반환
-	// 분석결과 839
+	// 분석결과 377
 	@PostMapping("/performPassiveScan")
 	public ResponseEntity<ScanResult> performPassiveScan(@RequestBody ScanRequest req) throws Exception {
 		// 1) 유효성 검사 (SSRF 방지 등)
@@ -67,7 +64,7 @@ public class ScanController {
 	}
 
 	// 크롤링x Active Scan만 별도로 실행
-	// 분석결과 847
+	// 분석결과 11
 	@PostMapping("/performActiveScan")
 	public ResponseEntity<ScanResult> performActiveScan(@RequestBody ScanRequest req) throws Exception {
 		// 1) 유효성 검사 (SSRF 방지 등)
@@ -80,13 +77,24 @@ public class ScanController {
 	}
 	
 	// 크롤링 없이 URL 단건 요청만으로 패시브 스캔
-	// 분석결과 839
+	// 분석결과 7
 	@PostMapping("/performPassiveNoCrawl")
     public ResponseEntity<ScanResult> performPassiveNoCrawl(@RequestBody ScanRequest req) throws Exception {
         if (!req.getUrl().startsWith("http")) {
             return ResponseEntity.badRequest().build();
         }
         ScanResult result = scanService.performPassiveNoCrawl(req.getUrl());
+        return ResponseEntity.ok(result);
+    }
+	
+	// sql, xss 2가지만
+	// 분석결과 13
+	@PostMapping("/performTop3Scan")
+    public ResponseEntity<ScanResult> performTop3Scan(@RequestBody ScanRequest req) throws Exception {
+        if (!req.getUrl().startsWith("http")) {
+            return ResponseEntity.badRequest().build();
+        }
+        ScanResult result = scanService.performTop3Scan(req.getUrl());
         return ResponseEntity.ok(result);
     }
 
