@@ -1,12 +1,11 @@
 package com.example.demo.controller;
 
+import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-import org.zaproxy.clientapi.core.ApiResponse;
-import org.zaproxy.clientapi.core.ApiResponseElement;
 import org.zaproxy.clientapi.core.ClientApi;
 import org.zaproxy.clientapi.core.ClientApiException;
 
@@ -18,84 +17,118 @@ import com.example.demo.service.ScanService;
 public class ScanController {
 
 	private final ScanService scanService;
-	private final ClientApi api = new ClientApi("localhost", 8090);
 
 	public ScanController(ScanService scanService) {
 		this.scanService = scanService;
 	}
 
-	// zap 버전 확인
-	@GetMapping("/zap/version")
-	public ResponseEntity<String> zapVersion() {
-		try {
-			// ZAP core.version API 호출
-			ApiResponse resp = api.core.version();
-			String version = ((ApiResponseElement) resp).getValue();
-			return ResponseEntity.ok("ZAP version: " + version);
-		} catch (ClientApiException e) {
-			return ResponseEntity.status(502).body("Failed to connect to ZAP: " + e.getMessage());
-		}
-	}
+	// ───────────────────────────────────────────────────────────────────────────
+	// 6가지 [크롤링 × 액티브 × 패시브] 조합
+	// ───────────────────────────────────────────────────────────────────────────
 
-	// Ajax Spider와 전통 Spider 크롤링 후 Active Scan
-	// 분석결과 412
-	@PostMapping("/scan")
-	public ResponseEntity<ScanResult> scan(@RequestBody ScanRequest req) throws Exception {
-		// 1) 유효성 검사 (SSRF 방지 등)
-		if (!req.getUrl().startsWith("http")) {
-			return ResponseEntity.badRequest().build();
-		}
-		// 2) 스캔 시작 & 결과 반환
-		ScanResult result = scanService.performScan(req.getUrl());
+	// 1) O / O / O
+	// 예제 사이트 분석결과: 419
+	@PostMapping("/crawl-active-passive")
+	public ResponseEntity<ScanResult> crawlActivePassive(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), true, true, true, null);
 		return ResponseEntity.ok(result);
 	}
 
-	// AJAX + 전통 Spider 크롤링 후 패시브 스캔 결과만 반환
-	// 분석결과 377
-	@PostMapping("/performPassiveScan")
-	public ResponseEntity<ScanResult> performPassiveScan(@RequestBody ScanRequest req) throws Exception {
-		// 1) 유효성 검사 (SSRF 방지 등)
-		if (!req.getUrl().startsWith("http")) {
-			return ResponseEntity.badRequest().build();
-		}
-		// 2) 스캔 시작 & 결과 반환
-		ScanResult result = scanService.performPassiveScan(req.getUrl());
+	// 2) O / O / X
+	// 예제 사이트 분석결과: 14
+	@PostMapping("/crawl-active")
+	public ResponseEntity<ScanResult> crawlActive(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), true, true, false, null);
 		return ResponseEntity.ok(result);
 	}
 
-	// 크롤링x Active Scan만 별도로 실행
-	// 분석결과 11
-	@PostMapping("/performActiveScan")
-	public ResponseEntity<ScanResult> performActiveScan(@RequestBody ScanRequest req) throws Exception {
-		// 1) 유효성 검사 (SSRF 방지 등)
-		if (!req.getUrl().startsWith("http")) {
-			return ResponseEntity.badRequest().build();
-		}
-		// 2) 스캔 시작 & 결과 반환
-		ScanResult result = scanService.performActiveScan(req.getUrl());
+	// 3) O / X / O
+	// 예제 사이트 분석결과: 403
+	@PostMapping("/crawl-passive")
+	public ResponseEntity<ScanResult> crawlPassive(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), true, false, true, null);
 		return ResponseEntity.ok(result);
 	}
-	
-	// 크롤링 없이 URL 단건 요청만으로 패시브 스캔
-	// 분석결과 7
-	@PostMapping("/performPassiveNoCrawl")
-    public ResponseEntity<ScanResult> performPassiveNoCrawl(@RequestBody ScanRequest req) throws Exception {
-        if (!req.getUrl().startsWith("http")) {
-            return ResponseEntity.badRequest().build();
-        }
-        ScanResult result = scanService.performPassiveNoCrawl(req.getUrl());
-        return ResponseEntity.ok(result);
-    }
-	
-	// sql, xss 2가지만
-	// 분석결과 13
-	@PostMapping("/performTop3Scan")
-    public ResponseEntity<ScanResult> performTop3Scan(@RequestBody ScanRequest req) throws Exception {
-        if (!req.getUrl().startsWith("http")) {
-            return ResponseEntity.badRequest().build();
-        }
-        ScanResult result = scanService.performTop3Scan(req.getUrl());
-        return ResponseEntity.ok(result);
-    }
 
+	// 4) X / O / O
+	// 예제 사이트 분석결과: 19
+	@PostMapping("/active-passive")
+	public ResponseEntity<ScanResult> activePassive(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), false, true, true, null);
+		return ResponseEntity.ok(result);
+	}
+
+	// 5) X / O / X
+	// 예제 사이트 분석결과: 12
+	@PostMapping("/active")
+	public ResponseEntity<ScanResult> activeOnly(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), false, true, false, null);
+		return ResponseEntity.ok(result);
+	}
+
+	// 6) X / X / O
+	// 예제 사이트 분석결과: 0
+	@PostMapping("/passive")
+	public ResponseEntity<ScanResult> passiveOnly(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), false, false, true, null);
+		return ResponseEntity.ok(result);
+	}
+
+	// ───────────────────────────────────────────────────────────────────────────
+	// 6가지 [크롤링 × SQL/XSS 스캐너 필터] 조합
+	// ───────────────────────────────────────────────────────────────────────────
+
+	// 7) 크롤링 O, SQL+XSS
+	// 예제 사이트 분석결과: 23
+	@PostMapping("/crawl-sqlxss")
+	public ResponseEntity<ScanResult> crawlSqlXss(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), true, true, false, List.of("40018", "40012"));
+		return ResponseEntity.ok(result);
+	}
+
+	// 8) 크롤링 O, SQL만
+	// 예제 사이트 분석결과: 9
+	@PostMapping("/crawl-sql")
+	public ResponseEntity<ScanResult> crawlSql(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), true, true, false, List.of("40018"));
+		return ResponseEntity.ok(result);
+	}
+
+	// 9) 크롤링 O, XSS만
+	// 예제 사이트 분석결과: 10
+	@PostMapping("/crawl-xss")
+	public ResponseEntity<ScanResult> crawlXss(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), true, true, false, List.of("40012"));
+		return ResponseEntity.ok(result);
+	}
+
+	// 10) 크롤링 X, SQL+XSS
+	// 예제 사이트 분석결과: 24
+	@PostMapping("/sqlxss")
+	public ResponseEntity<ScanResult> sqlXss(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), false, true, false, List.of("40018", "40012"));
+		return ResponseEntity.ok(result);
+	}
+
+	// 11) 크롤링 X, SQL만
+	// 예제 사이트 분석결과: 11
+	@PostMapping("/sql")
+	public ResponseEntity<ScanResult> sqlOnly(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), false, true, false, List.of("40018"));
+		return ResponseEntity.ok(result);
+	}
+
+	// 12) 크롤링 X, XSS만
+	// 예제 사이트 분석결과: 12
+	@PostMapping("/xss")
+	public ResponseEntity<ScanResult> xssOnly(@RequestBody ScanRequest req) throws Exception {
+		ScanResult result = scanService.performCustomScan(req.getUrl(), false, true, false, List.of("40012"));
+		return ResponseEntity.ok(result);
+	}
+
+	@GetMapping("/version")
+	public ResponseEntity<String> zapVersion() throws ClientApiException {
+		String version = new ClientApi("localhost", 8090).core.version().toString();
+		return ResponseEntity.ok("ZAP version: " + version);
+	}
 }
